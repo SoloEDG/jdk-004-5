@@ -2,29 +2,45 @@ import type { GameDoc } from "../../../shared/types";
 import { distance, normalize } from "../../../shared/math";
 import { spawnEnemy } from "../lib/spawn";
 import { ENEMY_CATALOG, WAVE_DURATION, TOTAL_WAVES } from "./catalog";
+import { advanceStage } from "./stage";
+
 export function stepWaves(doc: GameDoc, dt: number): void {
   if (doc.victory) return;
+  // Once the boss owns the arena the tide stops spawning and advancing.
+  if (doc.stage !== "tide") return;
   if (doc.wave === 0) {
     doc.wave = 1;
     doc.spawnBudget = 1;
     doc.notice = "第 1 波 · 信号已连接";
   }
-  doc.waveTime += dt;
-  while (doc.waveTime >= WAVE_DURATION) {
+
+  const finalTide = doc.wave >= TOTAL_WAVES;
+  doc.waveTime = Math.min(
+    WAVE_DURATION,
+    doc.waveTime + dt,
+  );
+  if (!finalTide && doc.waveTime >= WAVE_DURATION) {
     doc.waveTime -= WAVE_DURATION;
-    if (doc.wave >= TOTAL_WAVES) {
-      doc.victory = true;
-      doc.notice = "全部波次已清除";
-      return;
-    }
     doc.wave++;
-    doc.notice = `第 ${doc.wave} 波 · 威胁升级`;
+    doc.notice =
+      doc.wave >= TOTAL_WAVES
+        ? "终末敌潮 · 清空战场后首领登场"
+        : `第 ${doc.wave} 波 · 威胁升级`;
   }
-  doc.spawnBudget += dt * (1.05 + doc.wave * 0.27);
-  while (doc.spawnBudget >= 1) {
-    doc.spawnBudget--;
-    if (doc.enemies.length < 180) doc.enemies.push(spawnEnemy(doc));
+
+  // The designated tide ends on its clock; the boss waits for its leftovers to be cleared.
+  const tideEnded = doc.wave >= TOTAL_WAVES && doc.waveTime >= WAVE_DURATION;
+  if (tideEnded) {
+    if (doc.enemies.length > 0) doc.notice = "终末敌潮结束 · 清除残余敌群";
+    else advanceStage(doc);
+  } else {
+    doc.spawnBudget += dt * (1.05 + doc.wave * 0.27);
+    while (doc.spawnBudget >= 1) {
+      doc.spawnBudget--;
+      if (doc.enemies.length < 180) doc.enemies.push(spawnEnemy(doc));
+    }
   }
+
   for (const enemy of doc.enemies) {
     const toward = normalize(doc.player.x - enemy.x, doc.player.y - enemy.y),
       range = distance(enemy, doc.player);
@@ -56,4 +72,6 @@ export function stepWaves(doc: GameDoc, dt: number): void {
       }
     }
   }
+  // Clearing the leftovers happens inside combat, which runs after this step; re-check there too.
+  advanceStage(doc);
 }

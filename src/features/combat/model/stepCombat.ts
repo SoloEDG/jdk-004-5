@@ -3,6 +3,12 @@ import { WIDTH, HEIGHT } from "../../../shared/types";
 import { clamp, distance, normalize } from "../../../shared/math";
 import { segmentDistance } from "../lib/collision";
 import { hurtPlayer } from "./health";
+import {
+  applyBossHit,
+  stepBoss,
+  weakPointPosition,
+} from "./stepBoss";
+
 export function stepCombat(
   doc: GameDoc,
   input: Input,
@@ -15,6 +21,10 @@ export function stepCombat(
     shots: 0,
     collected: 0,
     weaponDamage: {},
+    bossDamage: 0,
+    weakDamage: 0,
+    weakByWeapon: {},
+    bossDefeated: false,
   };
   const player = doc.player;
   player.invincible = Math.max(0, player.invincible - dt);
@@ -30,6 +40,10 @@ export function stepCombat(
     player.radius,
     HEIGHT - player.radius,
   );
+  const boss = doc.boss;
+  const bossTaken = stepBoss(doc, dt);
+  events.taken += bossTaken;
+
   for (const bullet of doc.bullets) {
     const previous = { x: bullet.x, y: bullet.y };
     bullet.x += bullet.vx * dt;
@@ -49,8 +63,7 @@ export function stepCombat(
     for (const enemy of doc.enemies) {
       if (enemy.hp <= 0 || bullet.hit.includes(enemy.id)) continue;
       if (
-        segmentDistance(enemy, previous, bullet) >
-        enemy.radius + bullet.radius
+        segmentDistance(enemy, previous, bullet) > enemy.radius + bullet.radius
       )
         continue;
       bullet.hit.push(enemy.id);
@@ -69,6 +82,49 @@ export function stepCombat(
         bullet.life = -1;
         break;
       }
+      bullet.pierce--;
+    }
+    if (bullet.life < 0 || !boss || boss.defeated || bullet.bossHit) continue;
+    // A single projectile may score one boss hit: overlapping weak points cannot double-charge it.
+    const reach = bullet.radius;
+    let weak = false;
+    for (const point of boss.weakPoints) {
+      const at = weakPointPosition(boss, point);
+      if (
+        segmentDistance(
+          { x: at.x, y: at.y },
+          previous,
+          bullet,
+        ) <=
+        point.radius + reach
+      ) {
+        weak = true;
+        break;
+      }
+    }
+    if (
+      !weak &&
+      segmentDistance(boss, previous, bullet) > boss.radius + reach
+    )
+      continue;
+    bullet.bossHit = true;
+    const weapon = bullet.weapon === "enemy" ? null : bullet.weapon;
+    const hit = applyBossHit(doc, bullet.damage, weak);
+    events.damage += hit.effective;
+    events.bossDamage! += hit.effective;
+    if (weapon) {
+      events.weaponDamage![weapon] =
+        (events.weaponDamage![weapon] || 0) + hit.effective;
+      if (hit.weak) {
+        events.weakDamage! += hit.weak;
+        events.weakByWeapon![weapon] =
+          (events.weakByWeapon![weapon] || 0) + hit.weak;
+      }
+    }
+    if (boss.defeated) events.bossDefeated = true;
+    if (bullet.pierce <= 0) {
+      bullet.life = -1;
+    } else {
       bullet.pierce--;
     }
   }

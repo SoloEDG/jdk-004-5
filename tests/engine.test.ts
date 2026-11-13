@@ -75,12 +75,23 @@ test("large experience pickup queues every level and choices consume one at a ti
   while (d.pendingLevels) chooseUpgrade(d, d.choices[0]);
   assert.equal(d.phase, "playing");
 });
-test("eight elapsed waves signal victory", () => {
+test("the final tide ends spawning; victory waits for the boss", () => {
   const d = createRun();
+  d.phase = "playing";
   d.wave = 8;
   d.waveTime = 29.99;
+  d.enemies = [{ id: 9, kind: "chaser", x: 600, y: 325, hp: 10, maxHp: 10, radius: 12, cooldown: 0 }];
   stepWaves(d, 0.02);
-  assert.equal(d.victory, true);
+  assert.equal(d.victory, false);
+  assert.equal(d.stage, "tide");
+  assert.match(d.notice, /残余敌群/);
+  // The emptied tide hands the arena to the boss on the same frame.
+  d.enemies = [];
+  stepWaves(d, 0.01);
+  assert.equal(d.stage, "boss");
+  assert.ok(d.boss);
+  assert.equal(d.boss!.hp, d.boss!.maxHp);
+  assert.equal(d.boss!.phase, 1);
 });
 test("finished results append a single immutable record", () => {
   const d = createRun();

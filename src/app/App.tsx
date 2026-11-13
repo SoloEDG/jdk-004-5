@@ -89,9 +89,19 @@ export function App() {
             <div className="mission-note">
               <Radio size={18} />
               <span>
-                目标：存活 04:00
+                {d.stage === "tide"
+                  ? "目标：清空终末敌潮"
+                  : d.stage === "boss"
+                    ? "目标：击穿首领弱点"
+                    : "目标：撤离信号区"}
                 <br />
-                <small>穿越敌潮，等待撤离窗口。</small>
+                <small>
+                  {d.stage === "tide"
+                    ? `第 ${d.wave} 波进行中 · 清场后首领接管场地。`
+                    : d.stage === "boss"
+                      ? "阶段只在完整攻击周期结束后切换。"
+                      : "首领已倒下，本局即将结算。"}
+                </small>
               </span>
             </div>
           </aside>
@@ -189,6 +199,18 @@ export function App() {
               {d.phase === "upgrade" && (
                 <UpgradeDialog doc={d} choose={choose} />
               )}{" "}
+              {(d.stage === "boss" || d.stage === "cleared") &&
+                d.boss &&
+                d.phase === "playing" && (
+                  <div className="boss-banner">
+                    <span className="eyebrow">
+                      {d.boss.defeated
+                        ? "BOSS SIGNAL LOST"
+                        : `PHASE ${d.boss.phase} · ${d.boss.phaseFlash > 0 ? "SHIFTING" : "ENGAGED"}`}
+                    </span>
+                    <span>{d.notice}</span>
+                  </div>
+                )}
               {d.phase === "ended" && (
                 <ResultDialog doc={d} restart={restart} />
               )}
@@ -204,6 +226,11 @@ export function App() {
               <span>
                 <kbd>ESC</kbd> 暂停
               </span>
+              {d.boss && (
+                <span className="boss-hint">
+                  弱点 ×{d.boss.weakPoints.length} · 阶段 {d.boss.phase}/3
+                </span>
+              )}
               <span className="auto-fire">
                 <span className="status-dot" /> 自动攻击已启用
               </span>
@@ -252,8 +279,12 @@ export function App() {
               升级时选择一种武器或强化。脉冲、轨道刃、新星可以同时装备，被动强化对所有武器生效。
             </p>
             <p>
+              撑过八波并清空残余敌群后，首领接管战场。命中环绕的弱点造成双倍有效伤害，红色预警区域
+              在倒计时结束后爆发；阶段只在完整攻击周期结束时切换。
+            </p>
+            <p>
               ESC / P
-              暂停。切换窗口自动暂停。八波共四分钟，完成后自动记录本局统计。
+              暂停，升级选择同样冻结战场（含预警与阶段计时）。切换窗口自动暂停，结束或倒下一并记录本局统计。
             </p>
             <button className="primary" onClick={() => setHelp(false)}>
               已了解

@@ -12,7 +12,12 @@ function isRecord(value: unknown): value is RunRecord {
     ) &&
     Array.isArray(r.weapons) &&
     r.weapons.every((w) => typeof w === "string") &&
-    typeof r.victory === "boolean"
+    typeof r.victory === "boolean" &&
+    (r.outcome === undefined ||
+      ["victory", "defeat", "mutual"].includes(r.outcome)) &&
+    (r.bossDamage === undefined || Number.isFinite(r.bossDamage)) &&
+    (r.weakDamage === undefined || Number.isFinite(r.weakDamage)) &&
+    (r.bossPhase === undefined || Number.isFinite(r.bossPhase))
   );
 }
 export function loadRecords(): RunRecord[] {

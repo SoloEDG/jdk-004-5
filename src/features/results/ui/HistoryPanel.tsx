@@ -1,5 +1,11 @@
 import type { RunRecord } from "../../../shared/types";
 import { formatTime } from "../../../shared/math";
+const historyLabel = (r: RunRecord) =>
+  r.outcome === "mutual"
+    ? "同归于尽"
+    : r.outcome === "victory" || r.victory
+      ? "撤离成功"
+      : "信号中断";
 export function HistoryPanel({
   records,
   close,
@@ -23,10 +29,13 @@ export function HistoryPanel({
             
             .map((r) => (
               <div className="history-row" key={r.id}>
-                <span>{r.victory ? "撤离成功" : "信号中断"}</span>
+                <span>{historyLabel(r)}</span>
                 <span>{formatTime(r.duration)}</span>
                 <span>波次 {r.wave}</span>
-                <span>{r.kills} 击杀</span>
+                <span>
+                  {r.kills} 击杀
+                  {r.bossPhase ? ` · 首领 P${r.bossPhase}` : ""}
+                </span>
               </div>
             ))
         )}

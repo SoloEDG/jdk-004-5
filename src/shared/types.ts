@@ -1,6 +1,9 @@
 export type Vec = { x: number; y: number };
 export type Phase = "ready" | "playing" | "paused" | "upgrade" | "ended";
 export type WeaponId = "pulse" | "orbit" | "nova";
+export type Stage = "tide" | "boss" | "cleared";
+export type BossPhase = 1 | 2 | 3;
+export type RunOutcome = "victory" | "defeat" | "mutual";
 export interface Player extends Vec {
   hp: number;
   maxHp: number;
@@ -27,6 +30,45 @@ export interface Bullet extends Vec {
   weapon: WeaponId | "enemy";
   pierce: number;
   hit: number[];
+  /** One projectile may damage the boss once, even through overlapping weak points. */
+  bossHit?: boolean;
+}
+export interface WeakPoint {
+  id: number;
+  radius: number;
+  angle: number;
+  orbitRadius: number;
+}
+export interface BossWarning extends Vec {
+  id: number;
+  radius: number;
+  damage: number;
+  duration: number;
+  /** Counts down while telegraphed; negative values are the detonation fade. */
+  remaining: number;
+}
+export interface Boss extends Vec {
+  id: number;
+  name: string;
+  hp: number;
+  maxHp: number;
+  radius: number;
+  phase: BossPhase;
+  /** Phase queued by a health threshold, applied only after a completed attack cycle. */
+  pendingPhase: BossPhase | 0;
+  /** Completed attack cycles; phase changes are only allowed on these boundaries. */
+  cycle: number;
+  /** Volley slots already fired in the current cycle, so a large dt cannot double-fire one. */
+  volley: number;
+  /** Monotonic orbit clock; advances only inside stepBoss so a freeze keeps weak points aligned. */
+  spin: number;
+  attackTime: number;
+  cycleDuration: number;
+  weakPoints: WeakPoint[];
+  warnings: BossWarning[];
+  defeated: boolean;
+  flash: number;
+  phaseFlash: number;
 }
 export interface Drop extends Vec {
   id: number;
@@ -53,6 +95,12 @@ export interface RunStats {
   collected: number;
   shots: number;
   byWeapon: Record<WeaponId, number>;
+  /** Effective boss damage (clamped to remaining health, never overkill). */
+  bossDamage: number;
+  /** Portion of bossDamage scored on a weak point. */
+  weakDamage: number;
+  /** Weak-point damage attributed per weapon for segmented settlement. */
+  weakByWeapon: Record<WeaponId, number>;
 }
 export interface RunRecord {
   id: string;
@@ -63,6 +111,10 @@ export interface RunRecord {
   damage: number;
   weapons: string[];
   victory: boolean;
+  outcome?: RunOutcome;
+  bossPhase?: number;
+  bossDamage?: number;
+  weakDamage?: number;
 }
 export interface GameDoc {
   version: 1;
@@ -84,6 +136,9 @@ export interface GameDoc {
   wave: number;
   waveTime: number;
   spawnBudget: number;
+  stage: Stage;
+  boss: Boss | null;
+  outcome: RunOutcome | null;
   stats: RunStats;
   records: RunRecord[];
   notice: string;
@@ -101,6 +156,10 @@ export interface KillEvent {
 }
 export interface FrameEvents {
   weaponDamage?: Partial<Record<WeaponId, number>>;
+  bossDamage?: number;
+  weakDamage?: number;
+  weakByWeapon?: Partial<Record<WeaponId, number>>;
+  bossDefeated?: boolean;
   kills: KillEvent[];
   damage: number;
   taken: number;
